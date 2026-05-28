@@ -1,0 +1,87 @@
+{
+  "expo": {
+    "name": "Thali",
+    "slug": "thali",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "thali",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": false,
+    "splash": {
+      "backgroundColor": "#1D9E75",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.thali.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Thali uses the camera to scan QR codes at hotels.",
+        "NSLocationWhenInUseUsageDescription": "Thali needs your location once to find hotels near you.",
+        "NSNotificationsUsageDescription": "Thali sends you a reminder 2 hours before meal cutoff."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#1D9E75"
+      },
+      "package": "com.thali.app",
+      "versionCode": 1,
+      "minSdkVersion": 26,
+      "targetSdkVersion": 35,
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "POST_NOTIFICATIONS",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "SCHEDULE_EXACT_ALARM"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "newArchEnabled": false,
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "minSdkVersion": 26,
+            "kotlinVersion": "2.1.20"
+          }
+        }
+      ],
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Thali needs camera access to scan QR codes at hotels."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Thali needs your location once to find hotels near you.",
+          "locationWhenInUsePermission": "Thali needs your location once to find hotels near you."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#1D9E75"
+        }
+      ],
+      "expo-sqlite"
+    ],
+    "extra": {
+      "supabaseUrl": "https://injjmyibdidnvnlzqhkf.supabase.co",
+      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImluampteWliZGlkbnZubHpxaGtmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzY4Njk4MDAsImV4cCI6MjA1MjQ0NTgwMH0.GbqNgJEgYpRs9w8k_6uR6fQCALFXz5MXYZxhnbVWCuo"
+    },
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
