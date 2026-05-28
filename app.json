@@ -36,7 +36,11 @@
         "POST_NOTIFICATIONS",
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",
-        "SCHEDULE_EXACT_ALARM"
+        "SCHEDULE_EXACT_ALARM",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ]
     },
     "plugins": [
@@ -78,10 +82,15 @@
     ],
     "extra": {
       "supabaseUrl": "https://injjmyibdidnvnlzqhkf.supabase.co",
-      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImluampteWliZGlkbnZubHpxaGtmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzY4Njk4MDAsImV4cCI6MjA1MjQ0NTgwMH0.GbqNgJEgYpRs9w8k_6uR6fQCALFXz5MXYZxhnbVWCuo"
+      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImluampteWliZGlkbnZubHpxaGtmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzY4Njk4MDAsImV4cCI6MjA1MjQ0NTgwMH0.GbqNgJEgYpRs9w8k_6uR6fQCALFXz5MXYZxhnbVWCuo",
+      "router": {},
+      "eas": {
+        "projectId": "b1f0f70f-dad9-4fbb-b5b8-11a72f1afa08"
+      }
     },
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "owner": "chaitanya_dasari_99"
   }
 }
