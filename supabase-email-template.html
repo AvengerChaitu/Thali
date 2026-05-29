@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign in to Thali</title>
+</head>
+<body style="margin:0;padding:0;background-color:#F8F8F6;font-family:Roboto,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F8F8F6;">
+    <tr>
+      <td align="center" style="padding:40px 16px;">
+        <!-- Main card -->
+        <table role="presentation" width="480" max-width="100%" cellpadding="0" cellspacing="0" style="background-color:#FFFFFF;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
+
+          <!-- Logo area -->
+          <tr>
+            <td align="center" style="padding:40px 32px 8px;">
+              <span style="font-size:32px;font-weight:700;color:#1D9E75;letter-spacing:-1px;">thali</span>
+            </td>
+          </tr>
+
+          <!-- Heading -->
+          <tr>
+            <td align="center" style="padding:8px 32px 4px;">
+              <h1 style="margin:0;font-size:20px;font-weight:700;color:#1A1A18;">Your sign-in code</h1>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:0 32px 20px;">
+              <p style="margin:0;font-size:15px;color:#5C5C5A;line-height:1.5;">
+                Use the code below to sign in to <strong style="color:#1A1A18;">Thali</strong>.
+              </p>
+            </td>
+          </tr>
+
+          <!-- OTP box -->
+          <tr>
+            <td align="center" style="padding:8px 32px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" style="background-color:#F2F2F0;border-radius:14px;padding:20px 32px;margin:0 auto;">
+                <tr>
+                  <td align="center">
+                    <span style="font-size:36px;font-weight:700;letter-spacing:12px;color:#1A1A18;">{{ .Token }}</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Hint -->
+          <tr>
+            <td align="center" style="padding:16px 32px 32px;">
+              <p style="margin:0;font-size:13px;color:#9A9A98;line-height:1.5;">
+                This code expires in 10 minutes. If you didn't request this, you can safely ignore this email.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Divider -->
+          <tr>
+            <td style="padding:0 32px;">
+              <hr style="border:none;border-top:1px solid rgba(0,0,0,0.08);margin:0;" />
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td align="center" style="padding:20px 32px 32px;">
+              <p style="margin:0 0 4px;font-size:13px;color:#9A9A98;">
+                Sent to {{ .Email }}
+              </p>
+              <p style="margin:0;font-size:12px;color:#9A9A98;">
+                &copy; Thali &mdash; Meal attendance, simplified.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

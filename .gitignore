@@ -16,3 +16,7 @@ web-build/
 
 expo-env.d.ts
 # @end expo-cli
+
+# Prebuild generated native folders
+android/
+ios/

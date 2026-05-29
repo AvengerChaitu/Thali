@@ -1,9 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Animated, StatusBar, RefreshControl,
+  Animated, StatusBar, RefreshControl, Alert,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useAuthStore } from '../stores/authStore'
+import { useMyAttendance, useMarkAttendance } from '../hooks/useAttendance'
+import { useMySubscriptions } from '../hooks/useSubscriptions'
 import { colors, spacing, font, radius, layout, shadow, duration, screen } from '../../tokens'
 
 type AttendanceStatus = 'pending' | 'coming' | 'absent'
@@ -67,9 +70,15 @@ const HistoryRow = ({ item }: { item: HistoryItem }) => {
 }
 
 export default function HomeScreen() {
+  const user = useAuthStore((s) => s.user)
   const [refreshing, setRefreshing] = useState(false)
   const [history] = useState<HistoryItem[]>(MOCK_HISTORY)
   const scaleAnim = useRef(new Animated.Value(1)).current
+
+  const { data: subscriptions } = useMySubscriptions()
+  const sub = subscriptions?.[0]
+  const { data: attendance } = useMyAttendance(sub?.id ?? '')
+  const markAttendance = useMarkAttendance()
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
@@ -82,9 +91,23 @@ export default function HomeScreen() {
       Animated.timing(scaleAnim, { toValue: 0.97, duration: 80, useNativeDriver: true }),
       Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, bounciness: 6 }),
     ]).start()
-  }, [])
+    if (sub) {
+      markAttendance.mutate({
+        subscriptionId: sub.id,
+        hotelId: sub.hotelId,
+        mealType: sub.mealType,
+        status,
+      }, {
+        onError: (err: any) => Alert.alert('Error', err.message || 'Failed to mark attendance'),
+      })
+    }
+  }, [sub, markAttendance])
 
-  const attendanceRate = Math.round((history.filter(h => h.status === 'present').length / history.length) * 100)
+  const attendanceRate = history.length > 0
+    ? Math.round((history.filter(h => h.status === 'present').length / history.length) * 100)
+    : 0
+
+  const todayStr = new Date().toLocaleDateString('en-IN', { weekday: 'short' })
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -104,31 +127,42 @@ export default function HomeScreen() {
       >
         <View style={styles.greetingBlock}>
           <Text style={styles.greetingLabel}>Good evening,</Text>
-          <Text style={styles.greetingName}>Rahul</Text>
+          <Text style={styles.greetingName}>{user?.name || 'Rahul'}</Text>
         </View>
 
-        <Animated.View style={[styles.attendanceCard, { transform: [{ scale: scaleAnim }] }]}>
-          <View style={styles.cardHeader}>
-            <View>
-              <Text style={styles.cardMealType}>Dinner today</Text>
-              <Text style={styles.cardHotelName} numberOfLines={1}>Sharma Lunch Home</Text>
+        {sub ? (
+          <Animated.View style={[styles.attendanceCard, { transform: [{ scale: scaleAnim }] }]}>
+            <View style={styles.cardHeader}>
+              <View>
+                <Text style={styles.cardMealType}>{(sub.mealType === 'dinner' ? 'Dinner' : 'Lunch') + ' today'}</Text>
+                <Text style={styles.cardHotelName} numberOfLines={1}>{sub.hotelName}</Text>
+              </View>
+              <View style={styles.mealIconWrap}>
+                <Text style={styles.mealEmoji}>{sub.mealType === 'dinner' ? '🌙' : '☀️'}</Text>
+              </View>
             </View>
-            <View style={styles.mealIconWrap}>
-              <Text style={styles.mealEmoji}>🌙</Text>
+            <CutoffTimer cutoffTime={new Date(Date.now() + 2.5 * 60 * 60 * 1000)} />
+            <View style={styles.btnRow}>
+              <TouchableOpacity style={[styles.attendBtn, styles.comingBtn]} onPress={() => handleMark('coming')} activeOpacity={0.8} disabled={markAttendance.isPending}>
+                <Text style={styles.attendBtnIcon}>✓</Text>
+                <Text style={styles.attendBtnText}>{markAttendance.isPending ? '...' : 'Coming'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.attendBtn, styles.absentBtn]} onPress={() => handleMark('absent')} activeOpacity={0.8} disabled={markAttendance.isPending}>
+                <Text style={styles.attendBtnIcon}>✕</Text>
+                <Text style={styles.attendBtnText}>{markAttendance.isPending ? '...' : 'Not coming'}</Text>
+              </TouchableOpacity>
             </View>
+          </Animated.View>
+        ) : (
+          <View style={[styles.attendanceCard, { paddingVertical: spacing.xl }]}>
+            <Text style={[styles.cardMealType, { textAlign: 'center' }]}>
+              No active subscription
+            </Text>
+            <Text style={[styles.cardHotelName, { textAlign: 'center', fontSize: font.size.base }]}>
+              Join a hotel to start marking attendance
+            </Text>
           </View>
-          <CutoffTimer cutoffTime={new Date(Date.now() + 2.5 * 60 * 60 * 1000)} />
-          <View style={styles.btnRow}>
-            <TouchableOpacity style={[styles.attendBtn, styles.comingBtn]} onPress={() => handleMark('coming')} activeOpacity={0.8}>
-              <Text style={styles.attendBtnIcon}>✓</Text>
-              <Text style={styles.attendBtnText}>Coming</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.attendBtn, styles.absentBtn]} onPress={() => handleMark('absent')} activeOpacity={0.8}>
-              <Text style={styles.attendBtnIcon}>✕</Text>
-              <Text style={styles.attendBtnText}>Not coming</Text>
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
+        )}
 
         <View style={styles.statsRow}>
           <View style={styles.statChip}>

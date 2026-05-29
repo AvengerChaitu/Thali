@@ -1,9 +1,6 @@
 -- Thali Database Schema — Clean install
 -- WARNING: Drops all existing app tables before creating Thali tables.
 
--- 0. Extensions
-create extension if not exists "postgis" with schema "extensions";
-
 -- 1. Drop ALL existing app tables (cascade handles FK order)
 drop table if exists public.attendance cascade;
 drop table if exists public.subscriptions cascade;
@@ -48,7 +45,8 @@ create table public.hotels (
   owner_id      uuid not null references public.profiles(id) on delete cascade,
   name          text not null,
   address       text not null,
-  location      geography(point, 4326) not null,
+  lat           float8 not null,
+  lng           float8 not null,
   is_verified   boolean not null default false,
   qr_code       text not null default '',
   created_at    timestamptz not null default now()
@@ -163,7 +161,7 @@ create policy "attendance_insert_own" on public.attendance
 create policy "attendance_update_own" on public.attendance
   for update using (user_id = auth.uid());
 
--- 9. Helper function: nearby hotels (PostGIS)
+-- 9. Helper function: nearby hotels (Haversine formula, no PostGIS needed)
 create or replace function public.nearby_hotels(
   lat float8, lng float8, radius_km float8 default 5
 )
@@ -175,15 +173,68 @@ language sql stable
 as $$
   select
     h.id, h.name, h.address,
-    round((h.location::geography <-> st_makepoint(lng, lat)::geography)::numeric, 2)::float8,
-    (select count(*) from public.subscriptions s where s.hotel_id = h.id and s.is_active),
+    round(
+      (2 * 6371 * asin(sqrt(
+        power(sin(radians(h.lat - lat) / 2), 2)
+        + cos(radians(lat)) * cos(radians(h.lat))
+        * power(sin(radians(h.lng - lng) / 2), 2)
+      )))::numeric, 2
+    )::float8 as distance_km,
+    (select count(*) from public.subscriptions s where s.hotel_id = h.id and s.is_active)::bigint,
     h.is_verified
   from public.hotels h
-  where st_dwithin(h.location::geography, st_makepoint(lng, lat)::geography, radius_km * 1000)
+  where (2 * 6371 * asin(sqrt(
+    power(sin(radians(h.lat - lat) / 2), 2)
+    + cos(radians(lat)) * cos(radians(h.lat))
+    * power(sin(radians(h.lng - lng) / 2), 2)
+  ))) <= radius_km
   order by distance_km;
 $$;
 
--- 10. Edge function helpers (also callable via pg_cron)
+-- 10. Helper function: create hotel
+create or replace function public.create_hotel(
+  owner_id uuid, name text, address text, lat float8, lng float8
+)
+returns uuid
+language plpgsql security definer
+as $$
+declare
+  hotel_id uuid;
+begin
+  insert into public.hotels (owner_id, name, address, lat, lng, qr_code)
+  values (owner_id, name, address, lat, lng, '')
+  returning id into hotel_id;
+
+  update public.hotels set qr_code = hotel_id where id = hotel_id;
+  return hotel_id;
+end;
+$$;
+
+-- 11. Auth trigger: auto-create profile row when a user signs up
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql security definer
+as $$
+begin
+  insert into public.profiles (id, name, phone, role, avatar_initials, language)
+  values (
+    new.id,
+    coalesce(new.raw_user_meta_data ->> 'name', ''),
+    coalesce(new.raw_user_meta_data ->> 'phone', ''),
+    'subscriber',
+    coalesce(upper(left(new.raw_user_meta_data ->> 'name', 2)), 'U'),
+    'en'
+  );
+  return new;
+end;
+$$;
+
+create or replace trigger on_auth_user_created
+  after insert on auth.users
+  for each row
+  execute function public.handle_new_user();
+
+-- 12. Edge function helpers (also callable via pg_cron)
 
 create or replace function public.create_daily_attendance()
 returns void language plpgsql security definer

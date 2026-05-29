@@ -8,13 +8,24 @@ export default function TabLayout() {
 
   return (
     <Tabs
-      tabBar={({ state, navigation }) => (
-        <BottomNav
-          activeTab={state.routes[state.index]?.name as TabKey}
-          onTabPress={(key) => navigation.navigate(key)}
-          isOwner={role === 'owner'}
-        />
-      )}
+      tabBar={({ state, navigation }) => {
+        const currentName = state.routes[state.index]?.name
+        const mappedTab: TabKey =
+          currentName === 'index' ? 'home' :
+          currentName === 'history' ? 'history' :
+          currentName === 'hotel' ? 'hotel' :
+          currentName === 'profile' ? 'profile' : 'home'
+        return (
+          <BottomNav
+            activeTab={mappedTab}
+            onTabPress={(key) => {
+              const routeName = key === 'home' ? 'index' : key
+              navigation.navigate(routeName)
+            }}
+            isOwner={role === 'owner'}
+          />
+        )
+      }}
       screenOptions={{ headerShown: false }}
     >
       <Tabs.Screen name="index" />

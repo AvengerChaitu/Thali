@@ -1,27 +1,21 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity,
-  Animated, ActivityIndicator,
+  View, Text, TextInput, StyleSheet, FlatList, TouchableOpacity,
+  Animated, ActivityIndicator, Alert,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
+import * as Location from 'expo-location'
+import { supabase } from '../../src/lib/supabase'
+import { useNearbyHotels } from '../../src/hooks/useHotels'
 import { colors, spacing, font, radius, layout, shadow, duration, screen, rs } from '../../tokens'
 
-interface Hotel {
+interface HotelRow {
   id: string; name: string; address: string
-  distanceKm: number; meals: string[]
-  subscriberCount: number; isVerified: boolean; ownerName: string
+  distanceKm?: number; subscriberCount?: number; isVerified: boolean
 }
 
-const MOCK_HOTELS: Hotel[] = [
-  { id: 'h1', name: 'Sharma Lunch Home',    address: 'Arera Colony, Bhopal',  distanceKm: 0.3, meals: ['Dinner'],           subscriberCount: 45, isVerified: true,  ownerName: 'Ramesh Sharma'  },
-  { id: 'h2', name: 'Maa Ki Rasoi',         address: 'MP Nagar, Bhopal',      distanceKm: 0.7, meals: ['Lunch', 'Dinner'],  subscriberCount: 32, isVerified: true,  ownerName: 'Sunita Verma'   },
-  { id: 'h3', name: 'Punjabi Dhaba',        address: 'Habibganj, Bhopal',     distanceKm: 1.2, meals: ['Dinner'],           subscriberCount: 28, isVerified: false, ownerName: 'Gurpreet Singh' },
-  { id: 'h4', name: 'South Indian Corner',  address: 'TT Nagar, Bhopal',      distanceKm: 1.8, meals: ['Lunch', 'Dinner'],  subscriberCount: 20, isVerified: true,  ownerName: 'Venkat Rao'     },
-  { id: 'h5', name: 'Ghar Ka Khana',        address: 'Shahpura, Bhopal',      distanceKm: 2.4, meals: ['Dinner'],           subscriberCount: 15, isVerified: false, ownerName: 'Meena Tiwari'   },
-]
-
-const HotelCard = ({ hotel, onPress, index }: { hotel: Hotel; onPress: (h: Hotel) => void; index: number }) => {
+const HotelCard = ({ hotel, onPress, index, showDistance }: { hotel: HotelRow; onPress: (h: HotelRow) => void; index: number; showDistance: boolean }) => {
   const slideAnim = useRef(new Animated.Value(24)).current
   const fadeAnim  = useRef(new Animated.Value(0)).current
 
@@ -32,9 +26,11 @@ const HotelCard = ({ hotel, onPress, index }: { hotel: Hotel; onPress: (h: Hotel
     ]).start()
   }, [])
 
-  const distLabel = hotel.distanceKm < 1
-    ? `${Math.round(hotel.distanceKm * 1000)} m away`
-    : `${hotel.distanceKm.toFixed(1)} km away`
+  const distLabel = hotel.distanceKm != null
+    ? (hotel.distanceKm < 1
+      ? `${Math.round(hotel.distanceKm * 1000)} m away`
+      : `${hotel.distanceKm.toFixed(1)} km away`)
+    : null
 
   return (
     <Animated.View style={{ transform: [{ translateY: slideAnim }], opacity: fadeAnim }}>
@@ -48,11 +44,9 @@ const HotelCard = ({ hotel, onPress, index }: { hotel: Hotel; onPress: (h: Hotel
             </View>
             <Text style={styles.hotelAddress} numberOfLines={1}>{hotel.address}</Text>
             <View style={styles.hotelMeta}>
-              <Text style={styles.metaTx}>{distLabel}</Text>
-              <Text style={styles.metaDot}>·</Text>
-              <Text style={styles.metaTx}>{hotel.meals.join(' & ')}</Text>
-              <Text style={styles.metaDot}>·</Text>
-              <Text style={styles.metaTx}>{hotel.subscriberCount} members</Text>
+              {showDistance && distLabel && <Text style={styles.metaTx}>{distLabel}</Text>}
+              {showDistance && distLabel && hotel.subscriberCount != null && <Text style={styles.metaDot}>·</Text>}
+              {hotel.subscriberCount != null && <Text style={styles.metaTx}>{hotel.subscriberCount} members</Text>}
             </View>
           </View>
         </View>
@@ -64,15 +58,60 @@ const HotelCard = ({ hotel, onPress, index }: { hotel: Hotel; onPress: (h: Hotel
 
 export default function HotelFinder() {
   const [permission, setPermission] = useState<'undecided' | 'granted' | 'denied'>('undecided')
-  const [hotels, setHotels] = useState<Hotel[]>([])
-  const [loading, setLoading] = useState(false)
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const [search, setSearch] = useState('')
+  const [searchResults, setSearchResults] = useState<HotelRow[]>([])
+  const [searching, setSearching] = useState(false)
+  const { data: nearbyData, isLoading } = useNearbyHotels(location?.lat ?? 0, location?.lng ?? 0)
+
+  const nearbyHotels: HotelRow[] = (nearbyData ?? []).map((h: any) => ({
+    id: h.id, name: h.name, address: h.address,
+    distanceKm: h.distance_km, subscriberCount: h.subscriber_count, isVerified: h.is_verified,
+  }))
+
+  useEffect(() => {
+    if (!search.trim()) { setSearchResults([]); return }
+    setSearching(true)
+    const t = setTimeout(async () => {
+      try {
+        const { data, error } = await supabase
+          .from('hotels')
+          .select('id, name, address, is_verified')
+          .ilike('name', `%${search.trim()}%`)
+          .limit(20)
+        if (error) { console.error('Search error:', error); setSearchResults([]) }
+        else {
+          setSearchResults((data ?? []).map((h: any) => ({
+            id: h.id, name: h.name, address: h.address, isVerified: h.is_verified,
+          })))
+        }
+      } catch (err) {
+        console.error('Search error:', err)
+        setSearchResults([])
+      } finally {
+        setSearching(false)
+      }
+    }, 300)
+    return () => clearTimeout(t)
+  }, [search])
+
+  const displayHotels = search.trim() ? searchResults : nearbyHotels
 
   const requestLocation = useCallback(async () => {
-    setPermission('granted')
-    setLoading(true)
-    await new Promise(r => setTimeout(r, 900))
-    setHotels(MOCK_HOTELS)
-    setLoading(false)
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync()
+      if (status !== 'granted') {
+        Alert.alert('Permission denied', 'Location permission is needed to find nearby hotels.')
+        setPermission('denied')
+        return
+      }
+      setPermission('granted')
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+      setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to get location')
+      setPermission('denied')
+    }
   }, [])
 
   if (permission !== 'granted') {
@@ -80,6 +119,9 @@ export default function HotelFinder() {
       <SafeAreaView style={styles.safe} edges={['top']}>
         <View style={styles.appHeader}>
           <Text style={styles.appName}>thali</Text>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.replace('/onboarding/role')}>
+            <Text style={styles.backTx}>Back</Text>
+          </TouchableOpacity>
         </View>
         <View style={styles.gate}>
           <Text style={styles.gateEmoji}>📍</Text>
@@ -95,11 +137,14 @@ export default function HotelFinder() {
     )
   }
 
-  if (loading) {
+  if (isLoading || !location) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
         <View style={styles.appHeader}>
           <Text style={styles.appName}>thali</Text>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.replace('/onboarding/role')}>
+            <Text style={styles.backTx}>Back</Text>
+          </TouchableOpacity>
         </View>
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={colors.primary} />
@@ -113,21 +158,49 @@ export default function HotelFinder() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.appHeader}>
         <Text style={styles.appName}>thali</Text>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.replace('/onboarding/role')}>
+          <Text style={styles.backTx}>Back</Text>
+        </TouchableOpacity>
       </View>
-      <View style={styles.listHeader}>
-        <Text style={styles.listTitle}>Hotels near you</Text>
-        <Text style={styles.listSub}>{hotels.length} registered · within 5 km</Text>
-      </View>
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Search by hotel name…"
+        placeholderTextColor={colors.textHint}
+        value={search}
+        onChangeText={setSearch}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+      {search.trim() ? null : (
+        <View style={styles.listHeader}>
+          <Text style={styles.listTitle}>Hotels near you</Text>
+          <Text style={styles.listSub}>{nearbyHotels.length} registered · within 5 km</Text>
+        </View>
+      )}
       <FlatList
-        data={hotels}
+        data={searching && search.trim() ? [] : displayHotels}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         renderItem={({ item, index }) => (
-          <HotelCard hotel={item} onPress={(h) => router.push({ pathname: '/onboarding/scan', params: { hotelId: h.id, hotelName: h.name } })} index={index} />
+          <HotelCard hotel={item} onPress={(h) => router.push({ pathname: '/onboarding/scan', params: { hotelId: h.id, hotelName: h.name } })} index={index} showDistance={!search.trim()} />
         )}
         ItemSeparatorComponent={() => <View style={{ height: spacing.xs }} />}
         ListFooterComponent={() => <View style={{ height: spacing.xxl }} />}
+        ListEmptyComponent={() => {
+          if (searching) return <View style={styles.emptyWrap}><ActivityIndicator size="large" color={colors.primary} /></View>
+          return (
+            <View style={styles.emptyWrap}>
+              <Text style={styles.emptyEmoji}>{search.trim() ? '🔍' : '🏨'}</Text>
+              <Text style={styles.emptyTitle}>{search.trim() ? 'No matching hotels' : 'No hotels nearby'}</Text>
+              <Text style={styles.emptySub}>
+                {search.trim()
+                  ? 'Try a different name or check the spelling.'
+                  : 'There are no registered hotels within 5 km of your location.'}
+              </Text>
+            </View>
+          )
+        }}
       />
     </SafeAreaView>
   )
@@ -141,6 +214,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border,
   },
   appName: { fontSize: font.size.xl, fontWeight: font.weight.bold, color: colors.primary, letterSpacing: -0.5 },
+  backBtn: { minHeight: layout.touchTarget, justifyContent: 'center', paddingHorizontal: spacing.xs },
+  backTx: { fontSize: font.size.base, color: colors.primary, fontWeight: font.weight.medium },
+  searchInput: {
+    marginHorizontal: layout.screenPadding, marginVertical: spacing.sm,
+    height: layout.touchTarget, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border,
+    paddingHorizontal: spacing.md, fontSize: font.size.base, backgroundColor: colors.surface, color: colors.textPrimary,
+  },
   gate: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: rs(40), gap: spacing.md },
   gateEmoji: { fontSize: rs(48), marginBottom: spacing.xs },
   gateTitle: { fontSize: font.size.xl, fontWeight: font.weight.bold, color: colors.textPrimary, textAlign: 'center' },
@@ -149,7 +229,7 @@ const styles = StyleSheet.create({
   gateBtnText: { fontSize: font.size.md, fontWeight: font.weight.bold, color: colors.white },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
   loadingTx: { fontSize: font.size.base, color: colors.textSecondary },
-  listHeader: { paddingHorizontal: layout.screenPadding, paddingTop: spacing.md, paddingBottom: spacing.sm },
+  listHeader: { paddingHorizontal: layout.screenPadding, paddingTop: spacing.sm, paddingBottom: spacing.xs },
   listTitle: { fontSize: font.size.lg, fontWeight: font.weight.bold, color: colors.textPrimary, letterSpacing: -0.3 },
   listSub: { fontSize: font.size.sm, color: colors.textHint, marginTop: 3 },
   listContent: { paddingHorizontal: layout.screenPadding, paddingTop: spacing.xs },
@@ -168,4 +248,8 @@ const styles = StyleSheet.create({
   metaDot: { fontSize: font.size.xs, color: colors.textHint },
   scanPill: { backgroundColor: colors.primaryLight, paddingHorizontal: spacing.sm, paddingVertical: spacing.xxs, borderRadius: radius.full, minHeight: rs(30), justifyContent: 'center' },
   scanPillTx: { fontSize: font.size.xs, color: colors.primaryDark, fontWeight: font.weight.medium },
+  emptyWrap: { paddingVertical: spacing.xxl, alignItems: 'center', gap: spacing.sm, paddingTop: rs(80) },
+  emptyEmoji: { fontSize: rs(48) },
+  emptyTitle: { fontSize: font.size.lg, fontWeight: font.weight.bold, color: colors.textPrimary },
+  emptySub: { fontSize: font.size.base, color: colors.textHint, textAlign: 'center', lineHeight: 22, paddingHorizontal: spacing.xl },
 })

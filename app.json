@@ -4,14 +4,10 @@
     "slug": "thali",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./icons-png/thali-icon-ios_appstore_1024x1024.png",
     "scheme": "thali",
     "userInterfaceStyle": "light",
-    "newArchEnabled": false,
-    "splash": {
-      "backgroundColor": "#1D9E75",
-      "resizeMode": "contain"
-    },
+
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.thali.app",
@@ -22,13 +18,17 @@
       }
     },
     "android": {
+      "config": {
+        "googleMaps": {
+          "apiKey": "zndr5vQ6ppec6mmhaDDwRMNduO38ZtFmkqiZICy8"
+        }
+      },
       "adaptiveIcon": {
+        "foregroundImage": "./icons-png/thali-icon-android_playstore_512x512.png",
         "backgroundColor": "#1D9E75"
       },
       "package": "com.thali.app",
       "versionCode": 1,
-      "minSdkVersion": 26,
-      "targetSdkVersion": 35,
       "permissions": [
         "CAMERA",
         "ACCESS_FINE_LOCATION",
@@ -52,6 +52,7 @@
             "compileSdkVersion": 36,
             "targetSdkVersion": 36,
             "minSdkVersion": 26,
+            "buildArchs": ["arm64-v8a"],
             "kotlinVersion": "2.1.20"
           }
         }
@@ -78,11 +79,12 @@
           "color": "#1D9E75"
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-sharing"
     ],
     "extra": {
       "supabaseUrl": "https://injjmyibdidnvnlzqhkf.supabase.co",
-      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImluampteWliZGlkbnZubHpxaGtmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzY4Njk4MDAsImV4cCI6MjA1MjQ0NTgwMH0.GbqNgJEgYpRs9w8k_6uR6fQCALFXz5MXYZxhnbVWCuo",
+      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImluampteWliZGlkbnZubHpxaGtmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1MDAwNDksImV4cCI6MjA5NTA3NjA0OX0.9lei36RGNLT2dvpGUl6rsmvK_fOE30gBxZsNuDQH5vc",
       "router": {},
       "eas": {
         "projectId": "b1f0f70f-dad9-4fbb-b5b8-11a72f1afa08"

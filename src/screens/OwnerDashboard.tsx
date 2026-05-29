@@ -1,38 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Animated, StatusBar, RefreshControl,
+  Animated, StatusBar, RefreshControl, ActivityIndicator,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { supabase } from '../lib/supabase'
+import { useAuthStore } from '../stores/authStore'
+import { useOwnerDashboard } from '../hooks/useAttendance'
 import { colors, spacing, font, radius, layout, shadow, duration, screen, rs } from '../../tokens'
+import type { DashboardSubscriber } from '../types'
 
 type SubscriberStatus = 'coming' | 'absent' | 'pending'
-
-interface Subscriber {
-  id: string; name: string; status: SubscriberStatus
-  markedAt?: string; avatarInitials: string
-}
-
-interface DayStats {
-  total: number; coming: number; absent: number; pending: number
-  cutoffTime: Date
-}
-
-const MOCK_STATS: DayStats = {
-  total: 45, coming: 32, absent: 8, pending: 5,
-  cutoffTime: new Date(Date.now() + 2.5 * 60 * 60 * 1000),
-}
-
-const MOCK_SUBSCRIBERS: Subscriber[] = [
-  { id: '1', name: 'Rahul Sharma', status: 'coming', markedAt: '7:12 AM', avatarInitials: 'RS' },
-  { id: '2', name: 'Priya Kulkarni', status: 'absent', markedAt: '6:58 AM', avatarInitials: 'PK' },
-  { id: '3', name: 'Arjun Mehta', status: 'pending', avatarInitials: 'AM' },
-  { id: '4', name: 'Neha Joshi', status: 'coming', markedAt: '7:30 AM', avatarInitials: 'NJ' },
-  { id: '5', name: 'Vijay Rao', status: 'coming', markedAt: '8:02 AM', avatarInitials: 'VR' },
-  { id: '6', name: 'Sunita Patil', status: 'absent', markedAt: '6:45 AM', avatarInitials: 'SP' },
-  { id: '7', name: 'Deepak Nair', status: 'coming', markedAt: '7:55 AM', avatarInitials: 'DN' },
-  { id: '8', name: 'Kavitha Reddy', status: 'pending', avatarInitials: 'KR' },
-]
 
 const CutoffBanner = ({ stats }: { stats: DayStats }) => {
   const [timeLeft, setTimeLeft] = useState('')
@@ -147,16 +125,28 @@ const SubscriberRow = ({ item }: { item: Subscriber }) => {
 }
 
 export default function OwnerDashboard() {
-  const [stats] = useState<DayStats>(MOCK_STATS)
-  const [subscribers] = useState<Subscriber[]>(MOCK_SUBSCRIBERS)
+  const userId = useAuthStore((s) => s.user?.id)
   const [filter, setFilter] = useState<SubscriberStatus | 'all'>('all')
   const [refreshing, setRefreshing] = useState(false)
+  const [mealType, setMealType] = useState<'dinner' | 'lunch'>('dinner')
+  const [ownerHotel, setOwnerHotel] = useState<any>(null)
+
+  useEffect(() => {
+    if (!userId) return
+    supabase.from('hotels').select('*').eq('owner_id', userId).limit(1).single()
+      .then(({ data, error }) => { if (!error && data) setOwnerHotel(data) })
+  }, [userId])
+
+  const { data: dashData, isLoading, refetch } = useOwnerDashboard(ownerHotel?.id ?? '', mealType)
+
+  const stats = dashData?.stats ?? { total: 0, coming: 0, absent: 0, pending: 0, cutoffTime: new Date() }
+  const subscribers: DashboardSubscriber[] = dashData?.subscribers ?? []
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
-    await new Promise(r => setTimeout(r, 800))
+    await refetch()
     setRefreshing(false)
-  }, [])
+  }, [refetch])
 
   const visible = (filter === 'all' ? subscribers : subscribers.filter(s => s.status === filter))
     .slice().sort((a, b) => {
@@ -164,23 +154,30 @@ export default function OwnerDashboard() {
       return ord[a.status] - ord[b.status]
     })
 
-  const pct = Math.round((stats.coming / stats.total) * 100)
+  const pct = stats.total > 0 ? Math.round((stats.coming / stats.total) * 100) : 0
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       <View style={styles.header}>
         <View>
-          <Text style={styles.hotelName}>Sharma Lunch Home</Text>
-          <Text style={styles.headerSub}>
-            {new Date().toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
-            {' · Dinner'}
-          </Text>
+          <Text style={styles.hotelName}>{ownerHotel?.name ?? 'My Hotel'}</Text>
+          <View style={styles.mealToggleRow}>
+            <TouchableOpacity onPress={() => setMealType('dinner')} style={[styles.mealToggleBtn, mealType === 'dinner' && styles.mealToggleActive]}>
+              <Text style={[styles.mealToggleTx, mealType === 'dinner' && styles.mealToggleTxActive]}>Dinner</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setMealType('lunch')} style={[styles.mealToggleBtn, mealType === 'lunch' && styles.mealToggleActive]}>
+              <Text style={[styles.mealToggleTx, mealType === 'lunch' && styles.mealToggleTxActive]}>Lunch</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-        <TouchableOpacity style={styles.exportBtn}>
-          <Text style={styles.exportTx}>Export</Text>
-        </TouchableOpacity>
       </View>
+
+      {isLoading && !dashData ? (
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      ) : (
 
       <ScrollView
         style={styles.scroll} contentContainerStyle={styles.content}
@@ -232,6 +229,7 @@ export default function OwnerDashboard() {
         </View>
         <View style={{ height: layout.navHeight + spacing.md }} />
       </ScrollView>
+      )}
     </SafeAreaView>
   )
 }
@@ -244,9 +242,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border,
   },
   hotelName: { fontSize: font.size.lg, fontWeight: font.weight.bold, color: colors.textPrimary, letterSpacing: -0.3 },
-  headerSub: { fontSize: font.size.sm, color: colors.textHint, marginTop: 2 },
-  exportBtn: { paddingHorizontal: spacing.md, paddingVertical: spacing.xxs, borderRadius: radius.full, borderWidth: 1, borderColor: colors.primary, minHeight: layout.touchTarget, justifyContent: 'center' },
-  exportTx: { fontSize: font.size.sm, fontWeight: font.weight.medium, color: colors.primary },
+  mealToggleRow: { flexDirection: 'row', gap: spacing.xxs, marginTop: spacing.xxs },
+  mealToggleBtn: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xxs, borderRadius: radius.full, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, minHeight: rs(28), justifyContent: 'center' },
+  mealToggleActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  mealToggleTx: { fontSize: font.size.xs, color: colors.textSecondary, fontWeight: font.weight.medium },
+  mealToggleTxActive: { color: colors.white },
+  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scroll: { flex: 1 },
   content: { paddingHorizontal: layout.screenPadding, paddingTop: spacing.md },
   cutoffBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: radius.md, padding: spacing.sm, marginBottom: spacing.md },

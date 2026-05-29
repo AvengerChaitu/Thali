@@ -8,20 +8,40 @@ import { router } from 'expo-router'
 import { supabase } from '../src/lib/supabase'
 import { colors, spacing, font, radius, layout, shadow, rs } from '../tokens'
 
+const validateEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)
+
+async function handleSession() {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.user) return
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', session.user.id)
+    .single()
+  if (profile) {
+    if (!profile.name) {
+      router.replace('/onboarding/role')
+    } else {
+      router.replace('/(tabs)')
+    }
+  } else {
+    router.replace('/onboarding/role')
+  }
+}
+
 export default function LoginScreen() {
-  const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
   const [otp, setOtp] = useState('')
-  const [step, setStep] = useState<'phone' | 'otp'>('phone')
+  const [step, setStep] = useState<'email' | 'otp'>('email')
   const [loading, setLoading] = useState(false)
   const fadeAnim = useRef(new Animated.Value(1)).current
 
-  const validatePhone = (p: string) => /^[6-9]\d{9}$/.test(p)
-
   const sendOtp = async () => {
-    if (!validatePhone(phone)) { Alert.alert('Invalid number', 'Enter a valid 10-digit Indian mobile number'); return }
+    const cleanEmail = email.trim()
+    if (!validateEmail(cleanEmail)) { Alert.alert('Invalid email', 'Enter a valid email address'); return }
     setLoading(true)
     try {
-      const { error } = await supabase.auth.signInWithOtp({ phone: `+91${phone}` })
+      const { error } = await supabase.auth.signInWithOtp({ email: cleanEmail })
       if (error) throw error
       setStep('otp')
     } catch (err: any) {
@@ -33,28 +53,18 @@ export default function LoginScreen() {
 
   const verifyOtp = async () => {
     if (otp.length < 4) { Alert.alert('Incomplete', 'Enter the full OTP'); return }
+    const cleanEmail = email.trim()
     setLoading(true)
     try {
-      const { data, error } = await supabase.auth.verifyOtp({
-        phone: `+91${phone}`,
+      const { error } = await supabase.auth.verifyOtp({
+        email: cleanEmail,
         token: otp,
-        type: 'sms',
+        type: 'email',
       })
       if (error) throw error
-      if (data.session) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', data.session.user.id)
-          .single()
-        if (profile) {
-          router.replace('/(tabs)')
-        } else {
-          router.replace('/onboarding/role')
-        }
-      }
+      await handleSession()
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Invalid OTP')
+      Alert.alert('Error', err.message)
     } finally {
       setLoading(false)
     }
@@ -72,41 +82,37 @@ export default function LoginScreen() {
         </View>
 
         <Animated.View style={[styles.formSection, { opacity: fadeAnim }]}>
-          {step === 'phone' ? (
+          {step === 'email' ? (
             <>
-              <Text style={styles.inputLabel}>Phone number</Text>
-              <View style={styles.phoneRow}>
-                <View style={styles.countryCode}>
-                  <Text style={styles.ccText}>+91</Text>
-                </View>
-                <TextInput
-                  style={styles.phoneInput}
-                  placeholder="9876543210"
-                  placeholderTextColor={colors.textHint}
-                  keyboardType="phone-pad"
-                  maxLength={10}
-                  value={phone}
-                  onChangeText={setPhone}
-                  autoFocus
-                />
-              </View>
+              <Text style={styles.inputLabel}>Email address</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="you@example.com"
+                placeholderTextColor={colors.textHint}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                value={email}
+                onChangeText={setEmail}
+                autoFocus
+              />
               <TouchableOpacity
-                style={[styles.primaryBtn, !validatePhone(phone) && styles.btnDisabled]}
+                style={[styles.primaryBtn, !validateEmail(email) && styles.btnDisabled]}
                 onPress={sendOtp}
-                disabled={loading || !validatePhone(phone)}
+                disabled={loading || !validateEmail(email)}
               >
                 <Text style={styles.btnText}>{loading ? 'Sending...' : 'Send OTP'}</Text>
               </TouchableOpacity>
             </>
           ) : (
             <>
-              <Text style={styles.inputLabel}>Enter OTP sent to +91 {phone}</Text>
+              <Text style={styles.inputLabel}>Enter OTP sent to {email}</Text>
               <TextInput
                 style={styles.otpInput}
-                placeholder="0000"
+                placeholder="00000000"
                 placeholderTextColor={colors.textHint}
                 keyboardType="number-pad"
-                maxLength={6}
+                maxLength={8}
                 value={otp}
                 onChangeText={setOtp}
                 autoFocus
@@ -118,8 +124,8 @@ export default function LoginScreen() {
               >
                 <Text style={styles.btnText}>{loading ? 'Verifying...' : 'Verify & Login'}</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => { setStep('phone'); setOtp('') }}>
-                <Text style={styles.backLink}>Change number</Text>
+              <TouchableOpacity onPress={() => { setStep('email'); setOtp('') }}>
+                <Text style={styles.backLink}>Change email</Text>
               </TouchableOpacity>
             </>
           )}
@@ -152,18 +158,8 @@ const styles = StyleSheet.create({
     fontSize: font.size.sm, color: colors.textSecondary,
     fontWeight: font.weight.medium,
   },
-  phoneRow: {
-    flexDirection: 'row', gap: spacing.xs,
-  },
-  countryCode: {
-    height: layout.touchTarget, minWidth: rs(60),
-    borderRadius: radius.md, borderWidth: 1, borderColor: colors.border,
-    alignItems: 'center', justifyContent: 'center',
-    backgroundColor: colors.surfaceAlt,
-  },
-  ccText: { fontSize: font.size.lg, color: colors.textPrimary, fontWeight: font.weight.medium },
-  phoneInput: {
-    flex: 1, height: layout.touchTarget,
+  input: {
+    height: layout.touchTarget,
     borderRadius: radius.md, borderWidth: 1, borderColor: colors.border,
     paddingHorizontal: spacing.md, fontSize: font.size.lg,
     backgroundColor: colors.surface, color: colors.textPrimary,

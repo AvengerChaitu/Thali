@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  View, Text, TouchableOpacity, StyleSheet,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, Alert,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
@@ -25,32 +25,37 @@ const ROLES = [
 
 export default function RoleSelectScreen() {
   const [loading, setLoading] = useState(false)
+  const [name, setName] = useState('')
   const user = useAuthStore((s) => s.user)
+  const setUser = useAuthStore((s) => s.setUser)
   const setRole = useAuthStore((s) => s.setRole)
   const setOnboarded = useAuthStore((s) => s.setOnboarded)
 
   const selectRole = async (role: 'subscriber' | 'owner') => {
+    const cleanName = name.trim()
+    if (!cleanName) { Alert.alert('Name required', 'Please enter your name before continuing.'); return }
     setLoading(true)
     try {
       const userId = user?.id || (await supabase.auth.getSession()).data.session?.user?.id
       if (!userId) return
-      const initials = (user?.name || 'U').split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
+      const initials = cleanName.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
       const { error } = await supabase.from('profiles').upsert({
         id: userId,
         phone: user?.phone || '',
-        name: user?.name || '',
+        name: cleanName,
         role,
         avatar_initials: initials,
         language: 'en',
       })
       if (error) throw error
+      setUser({ id: userId, phone: user?.phone || '', name: cleanName, role, avatarInitials: initials, language: 'en', createdAt: new Date().toISOString() })
       setRole(role)
       setOnboarded(true)
 
       if (role === 'subscriber') {
         router.replace('/onboarding/find')
       } else {
-        router.replace('/(tabs)')
+        router.replace('/onboarding/create-hotel')
       }
     } catch (err) {
       console.error('Role select error:', err)
@@ -62,7 +67,19 @@ export default function RoleSelectScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.content}>
-        <Text style={styles.heading}>Who are you?</Text>
+        <Text style={styles.heading}>Set up your profile</Text>
+        <Text style={styles.sub}>What should we call you?</Text>
+
+        <TextInput
+          style={styles.nameInput}
+          placeholder="Your full name"
+          placeholderTextColor={colors.textHint}
+          value={name}
+          onChangeText={setName}
+          autoCapitalize="words"
+          autoFocus
+        />
+
         <Text style={styles.sub}>Choose how you will use Thali</Text>
 
         <View style={styles.cardRow}>
@@ -98,6 +115,13 @@ const styles = StyleSheet.create({
   sub: {
     fontSize: font.size.base, color: colors.textSecondary,
     marginTop: spacing.xs, marginBottom: spacing.xxl,
+  },
+  nameInput: {
+    height: layout.touchTarget,
+    borderRadius: radius.md, borderWidth: 1, borderColor: colors.border,
+    paddingHorizontal: spacing.md, fontSize: font.size.lg,
+    backgroundColor: colors.surface, color: colors.textPrimary,
+    marginBottom: spacing.xl,
   },
   cardRow: { gap: spacing.md },
   roleCard: {

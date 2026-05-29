@@ -1,8 +1,19 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar } from 'react-native'
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, ActivityIndicator } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { router } from 'expo-router'
+import { useMySubscriptions } from '../hooks/useSubscriptions'
+import { useHotelById } from '../hooks/useHotels'
 import { colors, spacing, font, radius, layout, shadow } from '../../tokens'
 
 export default function MyHotelScreen() {
+  const { data: subscriptions, isLoading } = useMySubscriptions()
+  const sub = subscriptions?.[0]
+  const { data: hotel } = useHotelById(sub?.hotelId ?? '')
+
+  const mealsUsed = sub?.mealsUsed ?? 0
+  const totalMeals = sub?.totalMeals ?? 0
+  const mealsRemaining = totalMeals - mealsUsed
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
@@ -11,43 +22,56 @@ export default function MyHotelScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.hotelCard}>
-          <View style={styles.hotelTop}>
-            <View style={styles.iconWrap}><Text style={styles.icon}>🍽️</Text></View>
-            <View style={styles.hotelInfo}>
-              <Text style={styles.hotelName}>Sharma Lunch Home</Text>
-              <Text style={styles.hotelAddr}>Arera Colony, Bhopal</Text>
-            </View>
-            <View style={styles.verifiedBadge}><Text style={styles.verifiedText}>✓</Text></View>
+        {isLoading ? (
+          <View style={styles.loadingBody}>
+            <ActivityIndicator size="large" color={colors.primary} />
           </View>
-        </View>
+        ) : sub && hotel ? (
+          <>
+            <View style={styles.hotelCard}>
+              <View style={styles.hotelTop}>
+                <View style={styles.iconWrap}><Text style={styles.icon}>🍽️</Text></View>
+                <View style={styles.hotelInfo}>
+                  <Text style={styles.hotelName}>{hotel.name}</Text>
+                  <Text style={styles.hotelAddr}>{hotel.address}</Text>
+                </View>
+                {hotel.isVerified && <View style={styles.verifiedBadge}><Text style={styles.verifiedText}>✓</Text></View>}
+              </View>
+            </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Your subscription</Text>
-          <View style={styles.card}>
-            <View style={styles.statRow}>
-              <Text style={styles.statLabel}>Plan</Text>
-              <Text style={styles.statValue}>Dinner</Text>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Your subscription</Text>
+              <View style={styles.card}>
+                <View style={styles.statRow}>
+                  <Text style={styles.statLabel}>Plan</Text>
+                  <Text style={styles.statValue}>{sub.mealType === 'dinner' ? 'Dinner' : 'Lunch'}</Text>
+                </View>
+                <View style={styles.divider} />
+                <View style={styles.statRow}>
+                  <Text style={styles.statLabel}>Duration</Text>
+                  <Text style={styles.statValue}>{sub.startDate} – {sub.endDate}</Text>
+                </View>
+                <View style={styles.divider} />
+                <View style={styles.statRow}>
+                  <Text style={styles.statLabel}>Meals used</Text>
+                  <Text style={styles.statValue}>{mealsUsed} / {totalMeals}</Text>
+                </View>
+                <View style={styles.divider} />
+                <View style={styles.statRow}>
+                  <Text style={styles.statLabel}>Meals remaining</Text>
+                  <Text style={[styles.statValue, { color: colors.primary }]}>{mealsRemaining}</Text>
+                </View>
+              </View>
             </View>
-            <View style={styles.divider} />
-            <View style={styles.statRow}>
-              <Text style={styles.statLabel}>Duration</Text>
-              <Text style={styles.statValue}>1 May – 31 May</Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.statRow}>
-              <Text style={styles.statLabel}>Meals used</Text>
-              <Text style={styles.statValue}>22 / 30</Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.statRow}>
-              <Text style={styles.statLabel}>Meals remaining</Text>
-              <Text style={[styles.statValue, { color: colors.primary }]}>8</Text>
-            </View>
+          </>
+        ) : (
+          <View style={styles.loadingBody}>
+            <Text style={styles.emptyTitle}>No active subscription</Text>
+            <Text style={styles.emptySub}>You haven't joined a hotel yet.</Text>
           </View>
-        </View>
+        )}
 
-        <TouchableOpacity style={styles.switchBtn}>
+        <TouchableOpacity style={styles.switchBtn} onPress={() => router.replace('/onboarding/find')}>
           <Text style={styles.switchBtnText}>Switch hotel</Text>
         </TouchableOpacity>
 
@@ -65,6 +89,9 @@ const styles = StyleSheet.create({
   },
   screenTitle: { fontSize: font.size.xl, fontWeight: font.weight.bold, color: colors.textPrimary },
   scrollContent: { padding: layout.screenPadding },
+  loadingBody: { paddingVertical: spacing.xxl, alignItems: 'center', gap: spacing.md },
+  emptyTitle: { fontSize: font.size.lg, fontWeight: font.weight.bold, color: colors.textPrimary },
+  emptySub: { fontSize: font.size.base, color: colors.textHint, textAlign: 'center' },
   hotelCard: {
     backgroundColor: colors.surface, borderRadius: radius.lg, padding: layout.cardPadding,
     borderWidth: 1, borderColor: colors.border, ...shadow.md, marginBottom: spacing.lg,
